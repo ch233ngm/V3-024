@@ -370,13 +370,32 @@
         // 配置marked.js
         marked.setOptions({
             highlight: function(code, lang) {
-                if (lang && hljs.getLanguage(lang)) {
-                    return hljs.highlight(code, { language: lang }).value;
+                const hljs = window.hljs;
+                if (hljs && lang && hljs.getLanguage(lang)) {
+                    try {
+                        return hljs.highlight(code, { language: lang }).value;
+                    } catch (e) {
+                        console.error('Highlight error:', e);
+                        return code;
+                    }
                 }
-                return hljs.highlightAuto(code).value;
+                return code;
             },
             breaks: true,
             gfm: true
+        });
+        
+        // 确保highlight.js已加载
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof window.hljs === 'undefined') {
+                console.warn('Highlight.js not loaded, loading it now');
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/highlight.js@11.7.0/highlight.min.js';
+                script.onload = function() {
+                    console.log('Highlight.js loaded successfully');
+                };
+                document.head.appendChild(script);
+            }
         });
         
         // Environment variables - will be replaced by Cloudflare Pages
@@ -460,9 +479,15 @@
             messagesContainer.appendChild(messageElement);
             
             // 对新添加的代码块应用语法高亮
-            messageElement.querySelectorAll('pre code').forEach((block) => {
-                hljs.highlightElement(block);
-            });
+            if (window.hljs) {
+                try {
+                    messageElement.querySelectorAll('pre code').forEach((block) => {
+                        window.hljs.highlightElement(block);
+                    });
+                } catch (e) {
+                    console.error('Error applying syntax highlighting:', e);
+                }
+            }
             
             scrollToBottom();
             
