@@ -8,6 +8,11 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
     <meta name="robots" content="noindex, nofollow">
+    <!-- 添加marked.js库用于Markdown渲染 -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
+    <!-- 添加highlight.js用于代码高亮 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.7.0/styles/github.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.7.0/highlight.min.js"></script>
     
     <style>
         :root {
@@ -74,6 +79,17 @@
             animation: fadeIn 0.3s ease-in-out;
         }
         
+        /* 修改消息布局，使用户消息靠右，AI消息靠左 */
+        .user-message {
+            flex-direction: row-reverse;
+            justify-content: flex-start;
+        }
+        
+        .ai-message {
+            flex-direction: row;
+            justify-content: flex-start;
+        }
+        
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
@@ -91,6 +107,12 @@
             flex-shrink: 0;
         }
         
+        /* 调整头像间距 */
+        .user-message .avatar {
+            margin-right: 0;
+            margin-left: 16px;
+        }
+        
         .user-avatar {
             background-color: var(--primary-light);
             color: white;
@@ -104,6 +126,13 @@
         .message-content {
             flex: 1;
             line-height: 1.6;
+            max-width: 80%;
+        }
+        
+        /* 调整消息气泡对齐方式 */
+        .user-message .message-content {
+            display: flex;
+            justify-content: flex-end;
         }
         
         .message-bubble {
@@ -122,6 +151,76 @@
         .ai-message .message-bubble {
             background-color: var(--gray-100);
             border-top-left-radius: 4px;
+        }
+        
+        /* 增强Markdown样式 */
+        .markdown-content {
+            overflow-x: auto;
+        }
+        
+        .markdown-content pre {
+            background-color: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 12px 0;
+        }
+        
+        .markdown-content code {
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 0.9em;
+        }
+        
+        .markdown-content p code {
+            background-color: rgba(0, 0, 0, 0.05);
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+        
+        .markdown-content table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 16px 0;
+        }
+        
+        .markdown-content th, 
+        .markdown-content td {
+            border: 1px solid var(--gray-300);
+            padding: 8px 12px;
+            text-align: left;
+        }
+        
+        .markdown-content th {
+            background-color: var(--gray-100);
+        }
+        
+        .markdown-content img {
+            max-width: 100%;
+            height: auto;
+        }
+        
+        .markdown-content h1, 
+        .markdown-content h2, 
+        .markdown-content h3, 
+        .markdown-content h4, 
+        .markdown-content h5, 
+        .markdown-content h6 {
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        
+        .markdown-content ul, 
+        .markdown-content ol {
+            padding-left: 24px;
+            margin: 12px 0;
+        }
+        
+        .markdown-content blockquote {
+            border-left: 4px solid var(--gray-300);
+            padding: 0 16px;
+            margin: 16px 0;
+            color: var(--gray-700);
         }
         
         .input-container {
@@ -208,60 +307,30 @@
             display: none;
         }
         
-        /* 响应式调整 */
+        /* 调整响应式样式 */
         @media (max-width: 640px) {
+            .message-content {
+                max-width: 90%;
+            }
+            
             .avatar {
                 width: 32px;
                 height: 32px;
+            }
+            
+            .user-message .avatar {
+                margin-left: 12px;
+            }
+            
+            .ai-message .avatar {
                 margin-right: 12px;
             }
-            
-            .message-bubble {
-                padding: 10px 12px;
-            }
-            
-            .input-container {
-                padding: 12px;
-            }
         }
         
-        /* 代码块样式 */
-        pre {
-            background-color: #f8f9fa;
-            padding: 12px;
-            border-radius: 6px;
-            overflow-x: auto;
-            margin: 8px 0;
-            font-family: monospace;
-        }
-        
-        code {
-            font-family: monospace;
-            background-color: rgba(0, 0, 0, 0.05);
-            padding: 2px 4px;
-            border-radius: 4px;
-        }
-        
-        /* Markdown 样式 */
-        .message-content h1, .message-content h2, .message-content h3 {
-            margin-top: 16px;
-            margin-bottom: 8px;
-        }
-        
-        .message-content p {
-            margin-bottom: 8px;
-        }
-        
-        .message-content ul, .message-content ol {
-            margin-left: 24px;
-            margin-bottom: 8px;
-        }
-        
-        .message-content blockquote {
-            border-left: 4px solid var(--gray-300);
-            padding-left: 12px;
-            color: var(--gray-700);
-            margin: 8px 0;
+        /* 调整typing indicator样式 */
+        .typing-indicator-container .message-content {
+            display: flex;
+            justify-content: flex-start;
         }
     </style>
 </head>
@@ -275,7 +344,7 @@
             <div class="message ai-message">
                 <div class="avatar ai-avatar">AI</div>
                 <div class="message-content">
-                    <div class="message-bubble">
+                    <div class="message-bubble markdown-content">
                         Hello! I'm DeepSeek V3 0324 AI assistant. How can I help you today?
                     </div>
                 </div>
@@ -298,6 +367,18 @@
     </div>
 
     <script>
+        // 配置marked.js
+        marked.setOptions({
+            highlight: function(code, lang) {
+                if (lang && hljs.getLanguage(lang)) {
+                    return hljs.highlight(code, { language: lang }).value;
+                }
+                return hljs.highlightAuto(code).value;
+            },
+            breaks: true,
+            gfm: true
+        });
+        
         // Environment variables - will be replaced by Cloudflare Pages
         const YOUR_SITE_URL = window.location.origin;  // 动态获取当前网站URL
         const YOUR_SITE_NAME = 'DeepSeek V3 0324 Demo';
@@ -356,7 +437,7 @@
             });
         }
         
-        // Add AI message to UI
+        // Add AI message to UI with Markdown support
         function addAIMessage(content) {
             // Remove typing indicator
             const typingIndicator = document.querySelector('.typing-indicator-container');
@@ -366,13 +447,23 @@
             
             const messageElement = document.createElement('div');
             messageElement.className = 'message ai-message';
+            
+            // 使用marked.js渲染Markdown内容
+            const renderedContent = marked.parse(content);
+            
             messageElement.innerHTML = `
                 <div class="avatar ai-avatar">AI</div>
                 <div class="message-content">
-                    <div class="message-bubble">${content}</div>
+                    <div class="message-bubble markdown-content">${renderedContent}</div>
                 </div>
             `;
             messagesContainer.appendChild(messageElement);
+            
+            // 对新添加的代码块应用语法高亮
+            messageElement.querySelectorAll('pre code').forEach((block) => {
+                hljs.highlightElement(block);
+            });
+            
             scrollToBottom();
             
             // Add to message history
@@ -500,3 +591,4 @@
     </script>
 </body>
 </html>
+
