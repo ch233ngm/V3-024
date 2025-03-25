@@ -456,9 +456,9 @@
             });
         }
         
-        // Add AI message to UI with Markdown support
-        function addAIMessage(content) {
-            // Remove typing indicator
+        // 创建AI消息元素并返回
+        function createAIMessageElement() {
+            // 移除输入指示器
             const typingIndicator = document.querySelector('.typing-indicator-container');
             if (typingIndicator) {
                 typingIndicator.remove();
@@ -467,21 +467,28 @@
             const messageElement = document.createElement('div');
             messageElement.className = 'message ai-message';
             
-            // 使用marked.js渲染Markdown内容
-            const renderedContent = marked.parse(content);
-            
             messageElement.innerHTML = `
                 <div class="avatar ai-avatar">AI</div>
                 <div class="message-content">
-                    <div class="message-bubble markdown-content">${renderedContent}</div>
+                    <div class="message-bubble markdown-content"></div>
                 </div>
             `;
             messagesContainer.appendChild(messageElement);
+            scrollToBottom();
+            
+            return messageElement.querySelector('.markdown-content');
+        }
+        
+        // 更新AI消息内容
+        function updateAIMessage(element, content) {
+            // 使用marked.js渲染Markdown内容
+            const renderedContent = marked.parse(content);
+            element.innerHTML = renderedContent;
             
             // 对新添加的代码块应用语法高亮
             if (window.hljs) {
                 try {
-                    messageElement.querySelectorAll('pre code').forEach((block) => {
+                    element.querySelectorAll('pre code').forEach((block) => {
                         window.hljs.highlightElement(block);
                     });
                 } catch (e) {
@@ -490,15 +497,21 @@
             }
             
             scrollToBottom();
+        }
+        
+        // 添加AI消息到UI (非流式)
+        function addAIMessage(content) {
+            const messageElement = createAIMessageElement();
+            updateAIMessage(messageElement, content);
             
-            // Add to message history
+            // 添加到消息历史
             messageHistory.push({
                 role: 'assistant',
                 content: content
             });
         }
         
-        // Add typing indicator
+        // 添加输入指示器
         function addTypingIndicator() {
             const indicatorElement = document.createElement('div');
             indicatorElement.className = 'message ai-message typing-indicator-container';
@@ -530,13 +543,106 @@
             }, 5000);
         }
         
-        // Send message to API
+        // 处理流式响应
+        async function handleStreamResponse(response) {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder("utf-8");
+            let buffer = '';
+            let fullContent = '';
+            
+            // 创建消息元素
+            const messageElement = createAIMessageElement();
+            
+            try {
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    // 解码并添加到缓冲区
+                    buffer += decoder.decode(value, { stream: true });
+                    
+                    // 按行处理缓冲区
+                    let lines = buffer.split('\n');
+                    buffer = lines.pop() || ''; // 保留最后一个可能不完整的行
+                    
+                    for (const line of lines) {
+                        const trimmedLine = line.trim();
+                        if (trimmedLine === '') continue;
+                        
+                        // 处理 OpenRouter 特有的注释行（用于保持连接活跃）
+                        if (trimmedLine.startsWith(':')) {
+                            console.log('OpenRouter processing message:', trimmedLine);
+                            continue;
+                        }
+                        
+                        // 处理数据行
+                        if (trimmedLine.startsWith('data:')) {
+                            const data = trimmedLine.substring(5).trim();
+                            
+                            // 处理流结束标记
+                            if (data === '[DONE]') {
+                                console.log('Stream completed');
+                                continue;
+                            }
+                            
+                            try {
+                                const parsedData = JSON.parse(data);
+                                if (parsedData.choices && 
+                                    parsedData.choices[0].delta && 
+                                    parsedData.choices[0].delta.content) {
+                                    fullContent += parsedData.choices[0].delta.content;
+                                    updateAIMessage(messageElement, fullContent);
+                                }
+                            } catch (jsonError) {
+                                console.warn('Invalid JSON in event:', data);
+                            }
+                        }
+                    }
+                }
+                
+                // 处理最后可能的行
+                if (buffer.trim() !== '') {
+                    const trimmedBuffer = buffer.trim();
+                    
+                    // 处理 OpenRouter 特有的注释行
+                    if (!trimmedBuffer.startsWith(':') && trimmedBuffer.startsWith('data:')) {
+                        const data = trimmedBuffer.substring(5).trim();
+                        
+                        if (data !== '[DONE]') {
+                            try {
+                                const parsedData = JSON.parse(data);
+                                if (parsedData.choices && 
+                                    parsedData.choices[0].delta && 
+                                    parsedData.choices[0].delta.content) {
+                                    fullContent += parsedData.choices[0].delta.content;
+                                    updateAIMessage(messageElement, fullContent);
+                                }
+                            } catch (jsonError) {
+                                console.warn('Invalid JSON in final event:', data);
+                            }
+                        }
+                    }
+                }
+                
+                // 添加到消息历史
+                messageHistory.push({
+                    role: 'assistant',
+                    content: fullContent
+                });
+                
+            } catch (error) {
+                console.error('Stream reading error:', error);
+                showError('Error reading response stream');
+            }
+        }
+        
+        // 发送消息到API
         async function sendMessageToAPI(userMessage) {
             try {
                 isWaitingForResponse = true;
                 updateUIState();
                 
-                // Add typing indicator
+                // 添加输入指示器
                 addTypingIndicator();
                 
                 const response = await fetch('/api/config', {
@@ -549,7 +655,8 @@
                         messages: messageHistory.map(msg => ({
                             role: msg.role,
                             content: msg.content
-                        }))
+                        })),
+                        stream: true // 启用流式响应
                     })
                 });
                 
@@ -557,17 +664,14 @@
                     throw new Error(`API error: ${response.status}`);
                 }
                 
-                const data = await response.json();
-                const aiResponse = data.choices[0].message.content;
-                
-                // Add AI response
-                addAIMessage(aiResponse);
+                // 处理流式响应
+                await handleStreamResponse(response);
                 
             } catch (error) {
                 console.error('API request error:', error);
                 showError(error.message);
                 
-                // Remove typing indicator
+                // 移除输入指示器
                 const typingIndicator = document.querySelector('.typing-indicator-container');
                 if (typingIndicator) {
                     typingIndicator.remove();

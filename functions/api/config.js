@@ -29,7 +29,10 @@ export async function onRequest(context) {
 
         // 获取请求体
         const requestData = await context.request.json();
-
+        
+        // 检查是否请求流式响应
+        const isStreaming = requestData.stream === true;
+        
         // 调用 OpenRouter API
         const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
             method: 'POST',
@@ -41,10 +44,26 @@ export async function onRequest(context) {
             },
             body: JSON.stringify({
                 model: requestData.model,
-                messages: requestData.messages
+                messages: requestData.messages,
+                stream: isStreaming // 添加流式响应参数
             })
         });
-
+        
+        // 如果是流式响应，直接返回流
+        if (isStreaming) {
+            return new Response(response.body, {
+                headers: {
+                    'Content-Type': 'text/event-stream',
+                    'Cache-Control': 'no-cache',
+                    'Connection': 'keep-alive',
+                    'Access-Control-Allow-Origin': context.env.ENVIRONMENT === 'production' 
+                        ? 'https://v3-0324.info' 
+                        : '*',
+                }
+            });
+        }
+        
+        // 非流式响应处理
         const data = await response.json();
         return new Response(JSON.stringify(data), { headers });
 
