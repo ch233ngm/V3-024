@@ -7,6 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+    <meta name="robots" content="noindex, nofollow">
+    
     <style>
         :root {
             --primary-color: #2563eb;
@@ -296,11 +298,26 @@
     </div>
 
     <script>
-        // Environment variables
-        const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || 'sk-or-v1-...'; // Replace with actual API key
-        const YOUR_SITE_URL = process.env.YOUR_SITE_URL || 'https://v3-0324.info';
-        const YOUR_SITE_NAME = process.env.YOUR_SITE_NAME || 'DeepSeek V3 0324 Demo';
-        const MODEL = process.env.MODEL || 'deepseek/deepseek-chat-v3-0324:free';
+        // Environment variables - will be replaced by Cloudflare Pages
+        const YOUR_SITE_URL = window.location.origin;  // 动态获取当前网站URL
+        const YOUR_SITE_NAME = 'DeepSeek V3 0324 Demo';
+        const MODEL = 'deepseek/deepseek-chat-v3-0324:free';
+
+        // 添加获取API key的函数
+        async function getConfig() {
+            try {
+                const response = await fetch('/api/config');
+                if (!response.ok) {
+                    throw new Error('Failed to load config');
+                }
+                const config = await response.json();
+                return config.apiKey;
+            } catch (error) {
+                console.error('Error loading config:', error);
+                showError('Failed to initialize chat. Please try again later.');
+                throw error;
+            }
+        }
         
         // DOM elements
         const messagesContainer = document.getElementById('messages-container');
@@ -400,29 +417,27 @@
         // Send message to API
         async function sendMessageToAPI(userMessage) {
             try {
+                const apiKey = await getConfig();
                 isWaitingForResponse = true;
                 updateUIState();
                 
                 // Add typing indicator
                 addTypingIndicator();
                 
-                // Prepare message history for API
-                const messages = messageHistory.map(msg => ({
-                    role: msg.role,
-                    content: msg.content
-                }));
-                
                 const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+                        'Authorization': `Bearer ${apiKey}`,
                         'HTTP-Referer': YOUR_SITE_URL,
                         'X-Title': YOUR_SITE_NAME,
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
                         model: MODEL,
-                        messages: messages
+                        messages: messageHistory.map(msg => ({
+                            role: msg.role,
+                            content: msg.content
+                        }))
                     }),
                 });
                 
