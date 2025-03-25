@@ -1,3 +1,7 @@
+export const config = {
+    runtime: 'edge'  // 添加这个配置
+};
+
 export async function onRequest(context) {
     const headers = {
         'Content-Type': 'application/json',
