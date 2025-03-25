@@ -332,6 +332,20 @@
             display: flex;
             justify-content: flex-start;
         }
+        
+        /* 等待动画样式 */
+        .waiting-dots {
+            display: inline-block;
+            color: #888;
+            font-weight: bold;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 0.5; }
+            50% { opacity: 1; }
+            100% { opacity: 0.5; }
+        }
     </style>
 </head>
 <body>
@@ -553,6 +567,27 @@
             // 创建消息元素
             const messageElement = createAIMessageElement();
             
+            // 添加等待动画计时器变量
+            let waitingDotsTimer = null;
+            let lastUpdateTime = Date.now();
+            
+            // 启动等待动画函数
+            function startWaitingAnimation() {
+                let dots = 0;
+                waitingDotsTimer = setInterval(() => {
+                    // 如果超过3秒没有更新，显示等待动画
+                    if (Date.now() - lastUpdateTime > 3000) {
+                        const dotsText = '.'.repeat(dots + 1);
+                        const waitingText = fullContent + `<span class="waiting-dots">${dotsText}</span>`;
+                        updateAIMessage(messageElement, waitingText);
+                        dots = (dots + 1) % 3;
+                    }
+                }, 500);
+            }
+            
+            // 启动等待动画
+            startWaitingAnimation();
+            
             try {
                 while (true) {
                     const { done, value } = await reader.read();
@@ -592,6 +627,8 @@
                                     parsedData.choices[0].delta.content) {
                                     fullContent += parsedData.choices[0].delta.content;
                                     updateAIMessage(messageElement, fullContent);
+                                    // 更新最后接收数据的时间
+                                    lastUpdateTime = Date.now();
                                 }
                             } catch (jsonError) {
                                 console.warn('Invalid JSON in event:', data);
@@ -633,6 +670,11 @@
             } catch (error) {
                 console.error('Stream reading error:', error);
                 showError('Error reading response stream');
+            } finally {
+                // 清除等待动画计时器
+                if (waitingDotsTimer) {
+                    clearInterval(waitingDotsTimer);
+                }
             }
         }
         
